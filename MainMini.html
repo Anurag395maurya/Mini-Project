@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RentNest | Vacation Rentals, Cabins, Beach Houses & More</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #222222;
+        }
+
+        /* Custom Scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Airbnb-style Search Shadow */
+        .search-container {
+            box-shadow: 0 3px 12px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.08);
+            transition: box-shadow 0.2s ease;
+        }
+        .search-container:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+
+        /* Property Card Image Aspect Ratio */
+        .aspect-square-card {
+            aspect-ratio: 20/19;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        /* Category Filter Underline */
+        .category-item {
+            opacity: 0.6;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .category-item:hover {
+            opacity: 1;
+            border-bottom-color: #DDDDDD;
+        }
+        .category-item.active {
+            opacity: 1;
+            border-bottom-color: #222222;
+        }
+
+        /* Map Button Styling */
+        .map-floating-btn {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #222222;
+            color: white;
+            padding: 14px 24px;
+            border-radius: 30px;
+            font-weight: 600;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .map-floating-btn:hover {
+            transform: translateX(-50%) scale(1.05);
+        }
+
+        /* Page Transitions */
+        .page-view { display: none; }
+        .page-view.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        #map { height: calc(100vh - 160px); width: 100%; }
+
+        .auth-overlay, .search-overlay {
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        /* Pulse Animation for Current Location */
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 56, 92, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 56, 92, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 56, 92, 0); }
+        }
+        .pulse-marker {
+            background: #FF385C;
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+            border: 2px solid white;
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-white">
+
+    <!-- HEADER / NAVIGATION -->
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-100">
+        <div class="container mx-auto px-6 md:px-12 h-20 flex items-center justify-between">
+            <!-- Logo -->
+            <div class="flex-shrink-0 cursor-pointer flex items-center gap-2 text-[#FF385C]" onclick="navigateTo('home')">
+                <i class="bi bi-houses-fill text-3xl"></i>
+                <span class="text-xl font-bold tracking-tight hidden md:block">rentnest</span>
+            </div>
+
+            <!-- Search Bar Trigger (Desktop) -->
+            <div onclick="openSearch()" class="hidden md:flex items-center border border-gray-300 rounded-full py-2 px-4 search-container cursor-pointer">
+                <button class="px-4 border-r border-gray-300 text-sm font-semibold pointer-events-none">Anywhere</button>
+                <button class="px-4 border-r border-gray-300 text-sm font-semibold pointer-events-none">Any week</button>
+                <button class="px-4 text-sm text-gray-500 pointer-events-none">Add guests</button>
+                <div class="bg-[#FF385C] p-2 rounded-full text-white ml-2">
+                    <i class="bi bi-search text-xs"></i>
+                </div>
+            </div>
+
+            <!-- User Menu -->
+            <div class="flex items-center gap-4">
+                <button class="hidden lg:block text-sm font-semibold p-3 hover:bg-gray-100 rounded-full">RentNest your home</button>
+                <div class="flex items-center border border-gray-300 rounded-full p-2 gap-3 hover:shadow-md cursor-pointer relative" id="userMenuBtn">
+                    <i class="bi bi-list text-lg ml-1"></i>
+                    <div class="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center text-white">
+                        <i class="bi bi-person-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CATEGORIES BAR (Horizontally Scrolling) -->
+        <div id="categories-bar" class="container mx-auto px-6 md:px-12 flex items-center gap-8 py-4 overflow-x-auto no-scrollbar">
+            <a onclick="filterCategory(this, 'Trending')" class="category-item active flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-fire text-2xl"></i>
+                <span class="text-xs font-medium">Trending</span>
+            </a>
+            <a onclick="filterCategory(this, 'Amazing pools')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-water text-2xl"></i>
+                <span class="text-xs font-medium">Amazing pools</span>
+            </a>
+            <a onclick="filterCategory(this, 'Farms')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-flower1 text-2xl"></i>
+                <span class="text-xs font-medium">Farms</span>
+            </a>
+            <a onclick="filterCategory(this, 'Beachfront')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-umbrella text-2xl"></i>
+                <span class="text-xs font-medium">Beachfront</span>
+            </a>
+            <a onclick="filterCategory(this, 'Cabins')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-house-door text-2xl"></i>
+                <span class="text-xs font-medium">Cabins</span>
+            </a>
+            <a onclick="filterCategory(this, 'Luxe')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-gem text-2xl"></i>
+                <span class="text-xs font-medium">Luxe</span>
+            </a>
+            <a onclick="filterCategory(this, 'Islands')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-tsunami text-2xl"></i>
+                <span class="text-xs font-medium">Islands</span>
+            </a>
+            <a onclick="filterCategory(this, 'Castles')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-bank text-2xl"></i>
+                <span class="text-xs font-medium">Castles</span>
+            </a>
+            <a onclick="filterCategory(this, 'Countryside')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-tree text-2xl"></i>
+                <span class="text-xs font-medium">Countryside</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- SEARCH OVERLAY MODAL -->
+    <div id="searchOverlay" class="fixed inset-0 z-[200] hidden flex flex-col items-center pt-20 search-overlay">
+        <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl p-6 relative">
+            <button onclick="closeSearch()" class="absolute top-4 right-4 hover:bg-gray-100 p-2 rounded-full"><i class="bi bi-x-lg"></i></button>
+            
+            <div class="flex items-center gap-4 mb-6 border-b pb-4">
+                <div class="flex-1 bg-gray-100 rounded-xl p-3 flex items-center gap-3">
+                    <i class="bi bi-search text-gray-500"></i>
+                    <input type="text" id="searchInput" placeholder="Search destinations" class="bg-transparent w-full outline-none font-medium" onkeyup="handleSearchInput(event)">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <h4 class="font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Nearby & Popular</h4>
+                    <div class="space-y-1">
+                        <button onclick="useCurrentLocation()" class="w-full text-left p-3 hover:bg-gray-100 rounded-xl flex items-center gap-3 text-[#FF385C] font-semibold border border-pink-100 bg-pink-50/50">
+                            <i class="bi bi-cursor-fill"></i> Nearby Stays (Real-time)
+                        </button>
+                        <div class="py-2"><div class="h-[1px] bg-gray-100"></div></div>
+                        <button onclick="searchLocation(18.5204, 73.8567, 'Pune')" class="w-full text-left p-3 hover:bg-gray-100 rounded-xl flex items-center gap-3">
+                            <i class="bi bi-geo-alt-fill text-gray-400"></i> Pune, Maharashtra
+                        </button>
+                        <button onclick="searchLocation(19.0760, 72.8777, 'Mumbai')" class="w-full text-left p-3 hover:bg-gray-100 rounded-xl flex items-center gap-3">
+                            <i class="bi bi-geo-alt-fill text-gray-400"></i> Mumbai, Maharashtra
+                        </button>
+                        <button onclick="searchLocation(28.6139, 77.2090, 'Delhi')" class="w-full text-left p-3 hover:bg-gray-100 rounded-xl flex items-center gap-3">
+                            <i class="bi bi-geo-alt-fill text-gray-400"></i> Delhi, NCR
+                        </button>
+                    </div>
+                </div>
+                <div class="hidden md:block border-l pl-6">
+                    <h4 class="font-bold text-sm text-gray-500 mb-3 uppercase tracking-wider">Map Preview</h4>
+                    <div id="miniMap" class="bg-gray-100 rounded-2xl h-64 overflow-hidden relative">
+                         <img src="https://images.unsplash.com/photo-1526772662000-3f88f10405ff?auto=format&fit=crop&w=600&q=80" class="w-full h-full object-cover opacity-60">
+                         <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                             <div class="bg-white px-4 py-2 rounded-full shadow-lg font-bold text-xs flex items-center gap-2">
+                                 <i class="bi bi-pin-map-fill text-[#FF385C]"></i> Explore Live Map
+                             </div>
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AUTH MODAL -->
+    <div id="authModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 auth-overlay">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+            <div class="flex items-center border-b border-gray-200 p-4">
+                <button onclick="closeAuth()" class="hover:bg-gray-100 p-2 rounded-full"><i class="bi bi-x-lg"></i></button>
+                <div class="flex-1 text-center font-bold">Log in or sign up</div>
+            </div>
+            <div class="p-6">
+                <h3 class="text-2xl font-semibold mb-6">Welcome to RentNest</h3>
+                <form onsubmit="handleAuthSubmit(event)">
+                    <div class="border border-gray-400 rounded-xl overflow-hidden">
+                        <input type="email" placeholder="Email" class="w-full p-3 border-b border-gray-400 outline-none focus:bg-gray-50" required>
+                        <input type="password" placeholder="Password" class="w-full p-3 outline-none focus:bg-gray-50" required>
+                    </div>
+                    <button class="w-full bg-[#FF385C] text-white py-3 mt-6 rounded-xl font-semibold text-lg hover:bg-[#e0314f]">Continue</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN VIEWS -->
+    <main id="view-home" class="page-view active container mx-auto px-6 md:px-12 py-8">
+        <div id="listings-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-10">
+            <!-- Property Cards -->
+            <div class="cursor-pointer group">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:brightness-90" alt="Stay">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md hover:scale-110 transition">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Abiansemal, Indonesia</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.95</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Designed by Elora Hardy</p>
+                <p class="mt-2 text-[15px]"><span class="font-bold">₹24,500</span> night</p>
+            </div>
+
+            <div class="cursor-pointer group">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:brightness-90" alt="Stay">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md"><i class="bi bi-heart"></i></button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Malibu, California</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.88</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Beachfront paradise</p>
+                <p class="mt-2 text-[15px]"><span class="font-bold">₹1,45,000</span> night</p>
+            </div>
+
+            <div class="cursor-pointer group">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1542718610-a1d656d1884c?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:brightness-90" alt="Stay">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md"><i class="bi bi-heart"></i></button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Kyoto, Japan</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.98</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Traditional Machiya</p>
+                <p class="mt-2 text-[15px]"><span class="font-bold">₹35,200</span> night</p>
+            </div>
+
+            <div class="cursor-pointer group">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:brightness-90" alt="Stay">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md"><i class="bi bi-heart"></i></button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Zermatt, Switzerland</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.99</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Alpine Chalet</p>
+                <p class="mt-2 text-[15px]"><span class="font-bold">₹88,000</span> night</p>
+            </div>
+        </div>
+    </main>
+
+    <main id="view-map" class="page-view">
+        <div id="map"></div>
+    </main>
+
+    <!-- FLOATING MAP BUTTON -->
+    <button id="toggleMapBtn" class="map-floating-btn flex items-center gap-2" onclick="toggleView()">
+        <span id="mapBtnText">Show map</span> <i id="mapBtnIcon" class="bi bi-map"></i>
+    </button>
+
+    <!-- FOOTER -->
+    <footer class="bg-gray-100 border-t border-gray-200 pt-12 pb-24 md:pb-12">
+        <div class="container mx-auto px-6 md:px-12">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pb-12 border-b border-gray-200">
+                <!-- Support -->
+                <div>
+                    <h5 class="font-bold text-sm mb-4">Support</h5>
+                    <ul class="space-y-3 text-sm text-gray-600">
+                        <li><a href="#" class="hover:underline">Help Centre</a></li>
+                        <li><a href="#" class="hover:underline">Get help with a safety issue</a></li>
+                        <li><a href="#" class="hover:underline">RentNestCover</a></li>
+                        <li><a href="#" class="hover:underline">Anti-discrimination</a></li>
+                        <li><a href="#" class="hover:underline">Disability support</a></li>
+                        <li><a href="#" class="hover:underline">Cancellation options</a></li>
+                    </ul>
+                </div>
+                <!-- Community -->
+                <div>
+                    <h5 class="font-bold text-sm mb-4">Community</h5>
+                    <ul class="space-y-3 text-sm text-gray-600">
+                        <li><a href="#" class="hover:underline">RentNest.org: disaster relief housing</a></li>
+                        <li><a href="#" class="hover:underline">Combating discrimination</a></li>
+                    </ul>
+                </div>
+                <!-- Hosting -->
+                <div>
+                    <h5 class="font-bold text-sm mb-4">Hosting</h5>
+                    <ul class="space-y-3 text-sm text-gray-600">
+                        <li><a href="#" class="hover:underline">RentNest your home</a></li>
+                        <li><a href="#" class="hover:underline">RentNestCover for Hosts</a></li>
+                        <li><a href="#" class="hover:underline">Hosting resources</a></li>
+                        <li><a href="#" class="hover:underline">Community forum</a></li>
+                        <li><a href="#" class="hover:underline">Hosting responsibly</a></li>
+                    </ul>
+                </div>
+                <!-- RentNest -->
+                <div>
+                    <h5 class="font-bold text-sm mb-4">RentNest</h5>
+                    <ul class="space-y-3 text-sm text-gray-600">
+                        <li><a href="#" class="hover:underline">Newsroom</a></li>
+                        <li><a href="#" class="hover:underline">New features</a></li>
+                        <li><a href="#" class="hover:underline">Careers</a></li>
+                        <li><a href="#" class="hover:underline">Investors</a></li>
+                        <li><a href="#" class="hover:underline">RentNest Luxe</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Bottom Bar -->
+            <div class="flex flex-col md:flex-row justify-between items-center pt-8 gap-4">
+                <div class="flex flex-wrap justify-center md:justify-start gap-2 text-sm text-gray-700">
+                    <span>© 2026 RentNest, Inc.</span>
+                    <span class="hidden md:inline">·</span>
+                    <a href="#" class="hover:underline">Privacy</a>
+                    <span>·</span>
+                    <a href="#" class="hover:underline">Terms</a>
+                    <span>·</span>
+                    <a href="#" class="hover:underline">Sitemap</a>
+                    <span>·</span>
+                    <a href="#" class="hover:underline">Company details</a>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-2 font-semibold text-sm cursor-pointer hover:underline">
+                        <i class="bi bi-globe"></i>
+                        <span>English (IN)</span>
+                    </div>
+                    <div class="flex items-center gap-2 font-semibold text-sm cursor-pointer hover:underline">
+                        <span>₹ INR</span>
+                    </div>
+                    <div class="flex gap-4 text-xl">
+                        <i class="bi bi-facebook cursor-pointer hover:text-gray-600"></i>
+                        <i class="bi bi-twitter-x cursor-pointer hover:text-gray-600"></i>
+                        <i class="bi bi-instagram cursor-pointer hover:text-gray-600"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full opacity-0 pointer-events-none transition-all duration-300 z-[2000]">
+        Action successful
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let currentView = 'home';
+        let mapInitialized = false;
+        let mapInstance = null;
+        let userMarker = null;
+
+        function navigateTo(viewId) {
+            document.querySelectorAll('.page-view').forEach(v => v.classList.remove('active'));
+            document.getElementById('view-' + viewId).classList.add('active');
+            
+            const cats = document.getElementById('categories-bar');
+            if(viewId === 'home') cats.classList.remove('hidden');
+            else cats.classList.add('hidden');
+
+            const btnText = document.getElementById('mapBtnText');
+            const btnIcon = document.getElementById('mapBtnIcon');
+
+            if(viewId === 'map') {
+                btnText.textContent = "Show list";
+                btnIcon.classList.replace('bi-map', 'bi-list-ul');
+            } else {
+                btnText.textContent = "Show map";
+                btnIcon.classList.replace('bi-list-ul', 'bi-map');
+            }
+
+            currentView = viewId;
+            window.scrollTo(0,0);
+        }
+
+        function toggleView() {
+            if(currentView === 'home') {
+                navigateTo('map');
+                if(!mapInitialized) initMap();
+            } else {
+                navigateTo('home');
+            }
+        }
+
+        function openSearch() {
+            document.getElementById('searchOverlay').classList.remove('hidden');
+            setTimeout(() => document.getElementById('searchInput').focus(), 100);
+        }
+
+        function closeSearch() {
+            document.getElementById('searchOverlay').classList.add('hidden');
+        }
+
+        function handleSearchInput(e) {
+            if(e.key === 'Enter') {
+                showToast("Searching for " + e.target.value + "...");
+                closeSearch();
+            }
+        }
+
+        function useCurrentLocation() {
+            if (!navigator.geolocation) {
+                showToast("Geolocation is not supported");
+                return;
+            }
+            showToast("Finding rentals near you...");
+            navigator.geolocation.getCurrentPosition((position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                closeSearch();
+                navigateTo('map');
+                if(!mapInitialized) initMap();
+                mapInstance.flyTo([lat, lng], 14);
+                if (userMarker) mapInstance.removeLayer(userMarker);
+                userMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({ className: 'pulse-marker' })
+                }).addTo(mapInstance).bindPopup("You are here").openPopup();
+                generateNearbyRentals(lat, lng);
+            }, () => {
+                showToast("Unable to retrieve location");
+            });
+        }
+
+        function generateNearbyRentals(lat, lng) {
+            for(let i=0; i<4; i++) {
+                const rLat = lat + (Math.random() - 0.5) * 0.02;
+                const rLng = lng + (Math.random() - 0.5) * 0.02;
+                const price = "₹" + (Math.floor(Math.random() * 20) + 5) + ",000";
+                const customIcon = L.divIcon({
+                    className: 'bg-white px-2 py-1 rounded-full border shadow-md font-bold text-xs border-gray-300 text-pink-600',
+                    html: price
+                });
+                L.marker([rLat, rLng], { icon: customIcon }).addTo(mapInstance);
+            }
+        }
+
+        function searchLocation(lat, lng, name) {
+            showToast(`Exploring ${name}...`);
+            closeSearch();
+            navigateTo('map');
+            if(!mapInitialized) initMap();
+            mapInstance.flyTo([lat, lng], 13);
+            L.marker([lat, lng]).addTo(mapInstance).bindPopup(`<b>${name}</b>`).openPopup();
+        }
+
+        function initMap() {
+            mapInstance = L.map('map').setView([20.5937, 78.9629], 5);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; CARTO'
+            }).addTo(mapInstance);
+            mapInitialized = true;
+        }
+
+        function filterCategory(el, category) {
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+            el.classList.add('active');
+            showToast(`Filtering for ${category}...`);
+        }
+
+        const authModal = document.getElementById('authModal');
+        document.getElementById('userMenuBtn').addEventListener('click', () => authModal.classList.remove('hidden'));
+        function closeAuth() { authModal.classList.add('hidden'); }
+        function handleAuthSubmit(e) { e.preventDefault(); showToast("Welcome back!"); closeAuth(); }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('opacity-100');
+            setTimeout(() => toast.classList.remove('opacity-100'), 3000);
+        }
+    </script>
+</body>
+</html>

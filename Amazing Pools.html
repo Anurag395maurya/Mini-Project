@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazing Pools | RentNest Vacation Rentals</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #222222;
+        }
+
+        /* Custom Scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Property Card Image Aspect Ratio */
+        .aspect-square-card {
+            aspect-ratio: 20/19;
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        /* Category Filter Underline */
+        .category-item {
+            opacity: 0.6;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .category-item:hover {
+            opacity: 1;
+            border-bottom-color: #DDDDDD;
+        }
+        .category-item.active {
+            opacity: 1;
+            border-bottom-color: #222222;
+        }
+
+        /* Map Button Styling */
+        .map-floating-btn {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #222222;
+            color: white;
+            padding: 14px 24px;
+            border-radius: 30px;
+            font-weight: 600;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .map-floating-btn:hover {
+            transform: translateX(-50%) scale(1.05);
+        }
+
+        /* Page Transitions */
+        .page-view { display: none; }
+        .page-view.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        #map { height: calc(100vh - 160px); width: 100%; }
+
+        /* Range Slider Styling */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: #ddd;
+            border-radius: 5px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #FF385C;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        .price-tag-low { color: #16a34a; font-weight: 700; }
+    </style>
+</head>
+<body class="bg-white">
+
+    <!-- HEADER -->
+    <header class="sticky top-0 z-50 bg-white border-b border-gray-100">
+        <div class="container mx-auto px-6 md:px-12 h-20 flex items-center justify-between">
+            <div class="flex-shrink-0 cursor-pointer flex items-center gap-2 text-[#FF385C]" onclick="resetApp()">
+                <i class="bi bi-water text-3xl"></i>
+                <span class="text-xl font-bold tracking-tight hidden md:block">rentnest <span class="text-gray-400 font-normal">| Poolside Living</span></span>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button class="text-sm font-semibold p-3 hover:bg-gray-100 rounded-full">Explore all categories</button>
+                <div class="flex items-center border border-gray-300 rounded-full p-2 gap-3 hover:shadow-md cursor-pointer">
+                    <i class="bi bi-list text-lg ml-1"></i>
+                    <div class="w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center text-white">
+                        <i class="bi bi-person-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CATEGORIES BAR -->
+        <div class="container mx-auto px-6 md:px-12 flex items-center gap-8 py-4 overflow-x-auto no-scrollbar">
+            <a href="trending.html" class="category-item flex flex-col items-center gap-2 min-w-[56px] no-underline text-inherit">
+                <i class="bi bi-fire text-2xl"></i>
+                <span class="text-xs font-medium">Trending</span>
+            </a>
+            <div class="category-item active flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-water text-2xl"></i>
+                <span class="text-xs font-medium">Amazing pools</span>
+            </div>
+            <div class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-umbrella text-2xl"></i>
+                <span class="text-xs font-medium">Beachfront</span>
+            </div>
+            <div class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-house-door text-2xl"></i>
+                <span class="text-xs font-medium">Cabins</span>
+            </div>
+            <div class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+                <i class="bi bi-currency-dollar text-2xl"></i>
+                <span class="text-xs font-medium">Budget Stays</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- LISTING GRID VIEW -->
+    <main id="view-home" class="page-view active container mx-auto px-6 md:px-12 py-8">
+        <div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6 border-b pb-6">
+            <div>
+                <h1 class="text-2xl font-bold">Stays with amazing pools</h1>
+                <p class="text-gray-500">From luxury infinity edges to budget-friendly backyard dips.</p>
+            </div>
+            
+            <!-- FILTER SECTION WITH SLIDE BAR -->
+            <div class="flex flex-col gap-3 min-w-[280px]">
+                <div class="flex justify-between items-center text-sm font-semibold">
+                    <span>Max Nightly Rate</span>
+                    <span id="price-display" class="text-[#FF385C]">₹1,20,000+</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <input type="range" id="price-slider" min="1000" max="120000" step="1000" value="120000" oninput="handleSliderChange(this.value)">
+                    <button onclick="showAllPrices()" class="text-xs font-bold border border-gray-300 rounded-full px-4 py-2 hover:border-black transition whitespace-nowrap">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="listings-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-10">
+            
+            <!-- BUDGET OPTION 1 -->
+            <div class="cursor-pointer group property-card" data-price="2800">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1540541338287-41700207dee6?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:scale-105" alt="Goa Pool">
+                    <div class="absolute top-3 left-3 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-sm">Budget Pick</div>
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md hover:text-[#FF385C] transition">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Siolim, Goa</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.75</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Cozy Studio with Shared Pool</p>
+                <p class="text-gray-500 text-[15px]">800m from the river</p>
+                <p class="mt-2 text-[15px]"><span class="price-tag-low">₹2,800</span> night</p>
+            </div>
+
+            <!-- BUDGET OPTION 2 -->
+            <div class="cursor-pointer group property-card" data-price="3400">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:scale-105" alt="Rishikesh Pool">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md hover:text-[#FF385C] transition">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Rishikesh, India</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.88</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Mountain View Boutique Pool</p>
+                <p class="text-gray-500 text-[15px]">Yoga retreat vibes</p>
+                <p class="mt-2 text-[15px]"><span class="price-tag-low">₹3,400</span> night</p>
+            </div>
+
+            <!-- LUXURY OPTION 1 -->
+            <div class="cursor-pointer group property-card" data-price="42000">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:scale-105" alt="Santorini">
+                    <div class="absolute top-3 left-3 bg-white/90 px-3 py-1 rounded-full text-xs font-bold shadow-sm">Iconic</div>
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md hover:text-[#FF385C] transition">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Oia, Greece</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.98</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Cave Villa with Infinity Pool</p>
+                <p class="text-gray-500 text-[15px]">Breathtaking caldera views</p>
+                <p class="mt-2 text-[15px]"><span class="font-bold">₹42,000</span> night</p>
+            </div>
+
+            <!-- MID-RANGE OPTION 1 -->
+            <div class="cursor-pointer group property-card" data-price="9500">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1584132967334-10e028bd69f7?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:scale-105" alt="Bali Pool">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md hover:text-[#FF385C] transition">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Seminyak, Bali</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.90</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Hidden Jungle Villa</p>
+                <p class="text-gray-500 text-[15px]">Private lap pool</p>
+                <p class="mt-2 text-[15px]"><span class="font-bold">₹9,500</span> night</p>
+            </div>
+
+            <!-- BUDGET OPTION 3 -->
+            <div class="cursor-pointer group property-card" data-price="1900">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1590523277543-a94d2e4eb00b?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:scale-105" alt="Thailand Pool">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md hover:text-[#FF385C] transition">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Krabi, Thailand</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.65</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Bamboo Bungalow with Pool Access</p>
+                <p class="text-gray-500 text-[15px]">Tropical garden setting</p>
+                <p class="mt-2 text-[15px]"><span class="price-tag-low">₹1,900</span> night</p>
+            </div>
+
+            <!-- LUXURY OPTION 2 -->
+            <div class="cursor-pointer group property-card" data-price="115000">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1512918766671-5600c18e8d5f?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:scale-105" alt="Maldives">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md hover:text-[#FF385C] transition">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">North Atoll, Maldives</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 5.0</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Overwater Sunset Villa</p>
+                <p class="text-gray-500 text-[15px]">Private deck & pool</p>
+                <p class="mt-2 text-[15px]"><span class="font-bold">₹1,15,000</span> night</p>
+            </div>
+
+            <!-- BUDGET OPTION 4 -->
+            <div class="cursor-pointer group property-card" data-price="4200">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:scale-105" alt="Apartment Pool">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md hover:text-[#FF385C] transition">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Bangalore, India</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.70</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Rooftop Pool Apartment</p>
+                <p class="text-gray-500 text-[15px]">City skyline views</p>
+                <p class="mt-2 text-[15px]"><span class="price-tag-low">₹4,200</span> night</p>
+            </div>
+
+            <!-- MID-RANGE OPTION 2 -->
+            <div class="cursor-pointer group property-card" data-price="28500">
+                <div class="relative overflow-hidden mb-3">
+                    <img src="https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=800&q=80" class="aspect-square-card transition duration-300 group-hover:scale-105" alt="Palm Springs">
+                    <button class="absolute top-3 right-3 text-white text-2xl drop-shadow-md hover:text-[#FF385C] transition">
+                        <i class="bi bi-heart"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start">
+                    <h3 class="font-bold text-[15px]">Palm Springs, USA</h3>
+                    <div class="flex items-center gap-1 text-[14px]"><i class="bi bi-star-fill text-[10px]"></i> 4.85</div>
+                </div>
+                <p class="text-gray-500 text-[15px]">Desert Oasis Home</p>
+                <p class="text-gray-500 text-[15px]">Retro heated pool</p>
+                <p class="mt-2 text-[15px]"><span class="font-bold">₹28,500</span> night</p>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- MAP VIEW -->
+    <main id="view-map" class="page-view">
+        <div id="map"></div>
+    </main>
+
+    <!-- FLOATING MAP BUTTON -->
+    <button id="toggleMapBtn" class="map-floating-btn flex items-center gap-2" onclick="toggleView()">
+        <span id="mapBtnText">Show map</span> <i id="mapBtnIcon" class="bi bi-map"></i>
+    </button>
+
+    <!-- TOAST -->
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full opacity-0 pointer-events-none transition-all duration-300 z-[2000]">
+        Action successful
+    </div>
+
+    <!-- SCRIPTS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        let currentView = 'home';
+        let mapInitialized = false;
+        let mapInstance = null;
+
+        function navigateTo(viewId) {
+            document.querySelectorAll('.page-view').forEach(v => v.classList.remove('active'));
+            document.getElementById('view-' + viewId).classList.add('active');
+            
+            const btnText = document.getElementById('mapBtnText');
+            const btnIcon = document.getElementById('mapBtnIcon');
+
+            if(viewId === 'map') {
+                btnText.textContent = "Show list";
+                btnIcon.classList.replace('bi-map', 'bi-list-ul');
+            } else {
+                btnText.textContent = "Show map";
+                btnIcon.classList.replace('bi-list-ul', 'bi-map');
+            }
+
+            currentView = viewId;
+            window.scrollTo(0,0);
+        }
+
+        function toggleView() {
+            if(currentView === 'home') {
+                navigateTo('map');
+                if(!mapInitialized) initMap();
+            } else {
+                navigateTo('home');
+            }
+        }
+
+        function handleSliderChange(val) {
+            const display = document.getElementById('price-display');
+            const slider = document.getElementById('price-slider');
+            
+            // Format number with commas
+            const formatted = new Intl.NumberFormat('en-IN').format(val);
+            display.textContent = `₹${formatted}${val == slider.max ? '+' : ''}`;
+            
+            filterByPrice(val);
+        }
+
+        function filterByPrice(maxPrice) {
+            const cards = document.querySelectorAll('.property-card');
+            let visibleCount = 0;
+
+            cards.forEach(card => {
+                const price = parseInt(card.getAttribute('data-price'));
+                if (price <= maxPrice) {
+                    card.style.display = 'block';
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        function showAllPrices() {
+            const slider = document.getElementById('price-slider');
+            slider.value = slider.max;
+            handleSliderChange(slider.max);
+            showToast('Showing all prices');
+        }
+
+        function resetApp() {
+            showAllPrices();
+            if (currentView !== 'home') {
+                navigateTo('home');
+            }
+            showToast('Welcome back to RentNest');
+        }
+
+        function initMap() {
+            mapInstance = L.map('map').setView([15, 75], 4);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; CARTO'
+            }).addTo(mapInstance);
+
+            const allStays = [
+                { pos: [15.6200, 73.7644], price: "₹2.8k", name: "Goa Budget Pool" },
+                { pos: [30.0869, 78.2676], price: "₹3.4k", name: "Rishikesh Boutique" },
+                { pos: [36.4618, 25.3753], price: "₹42k", name: "Santorini Luxury" },
+                { pos: [12.9716, 77.5946], price: "₹4.2k", name: "Bangalore Rooftop" },
+                { pos: [8.1215, 98.8356], price: "₹1.9k", name: "Krabi Bungalow" }
+            ];
+
+            allStays.forEach(loc => {
+                const customIcon = L.divIcon({
+                    className: 'bg-white px-3 py-1 border rounded-full shadow-sm font-bold text-xs border-gray-200',
+                    html: loc.price
+                });
+                L.marker(loc.pos, { icon: customIcon }).addTo(mapInstance)
+                 .bindPopup(`<b>${loc.name}</b>`);
+            });
+
+            mapInitialized = true;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('opacity-100');
+            setTimeout(() => toast.classList.remove('opacity-100'), 3000);
+        }
+    </script>
+</body>
+</html>
