@@ -1,5 +1,3 @@
- <!-- Home Page -->
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -137,11 +135,11 @@
 
         <!-- CATEGORIES BAR (Horizontally Scrolling) -->
         <div id="categories-bar" class="container mx-auto px-6 md:px-12 flex items-center gap-8 py-4 overflow-x-auto no-scrollbar">
-            <a onclick="filterCategory(this, 'Trending')" class="category-item active flex flex-col items-center gap-2 min-w-[56px]">
+            <a  href="trending.html" onclick="filterCategory(this, 'Trending')" class="category-item active flex flex-col items-center gap-2 min-w-[56px]">
                 <i class="bi bi-fire text-2xl"></i>
                 <span class="text-xs font-medium">Trending</span>
             </a>
-            <a onclick="filterCategory(this, 'Amazing pools')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
+            <a href="Amazing Pools.html" onclick="filterCategory(this, 'Amazing pools')" class="category-item flex flex-col items-center gap-2 min-w-[56px]">
                 <i class="bi bi-water text-2xl"></i>
                 <span class="text-xs font-medium">Amazing pools</span>
             </a>
@@ -205,6 +203,7 @@
                         <button onclick="searchLocation(28.6139, 77.2090, 'Delhi')" class="w-full text-left p-3 hover:bg-gray-100 rounded-xl flex items-center gap-3">
                             <i class="bi bi-geo-alt-fill text-gray-400"></i> Delhi, NCR
                         </button>
+
                     </div>
                 </div>
                 <div class="hidden md:block border-l pl-6">
@@ -346,7 +345,7 @@
                         <li><a href="#" class="hover:underline">Hosting responsibly</a></li>
                     </ul>
                 </div>
-                <!-- RentNest -->
+                
                 <div>
                     <h5 class="font-bold text-sm mb-4">RentNest</h5>
                     <ul class="space-y-3 text-sm text-gray-600">
@@ -381,9 +380,9 @@
                         <span>₹ INR</span>
                     </div>
                     <div class="flex gap-4 text-xl">
-                        <i class="bi bi-facebook cursor-pointer hover:text-gray-600"></i>
-                        <i class="bi bi-twitter-x cursor-pointer hover:text-gray-600"></i>
-                        <i class="bi bi-instagram cursor-pointer hover:text-gray-600"></i>
+                       <a href="https://www.linkedin.com/in/anurag-maurya-187397328?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app"> <i class="bi bi-linkedin cursor-pointer hover:text-gray-600"></i></a>
+						                 <a href="https://www.linkedin.com/in/anurag-maurya-187397328"><i class="bi bi-github cursor-pointer hover:text-gray-600"></i></a>
+                       <a href="https://www.instagram.com/ak__anurag_maurya__07?igsh=d3M4NGFtZHZhY2J2"> <i class="bi bi-instagram cursor-pointer hover:text-gray-600"></i></a>
                     </div>
                 </div>
             </div>
@@ -522,5 +521,4 @@
         }
     </script>
 </body>
-
 </html>
